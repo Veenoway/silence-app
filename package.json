@@ -1,0 +1,12 @@
+{
+  "name": "silentswap-workspace",
+  "private": true,
+  "workspaces": [
+    "fhevm-sdk",
+    "silentswap"
+  ],
+  "scripts": {
+    "build:sdk": "npm run build --workspace=fhevm-sdk",
+    "dev": "npm run dev --workspace=silentswap"
+  }
+}
