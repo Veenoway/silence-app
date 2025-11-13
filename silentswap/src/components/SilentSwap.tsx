@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { VscLock } from "react-icons/vsc";
 import { getContract } from "viem";
 import {
   useAccount,
@@ -9,8 +10,8 @@ import {
   useWalletClient,
 } from "wagmi";
 import { CONTRACT_ABI } from "../contract";
+import { useContractActivity } from "../hooks/useContractActivity";
 import { useSilentPool } from "../hooks/useSilentPool";
-import { WalletConnection } from "./ConnectModal";
 
 const SILENTPOOL_ADDRESS = process.env
   .NEXT_PUBLIC_SILENTPOOL_ADDRESS as `0x${string}`;
@@ -44,6 +45,11 @@ export default function SilentPoolPage() {
   const [recipientAddress, setRecipientAddress] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"deposit" | "withdraw">("deposit");
+  const {
+    events,
+    isLoading: isLoadingEvents,
+    refresh,
+  } = useContractActivity(SILENTPOOL_ADDRESS);
 
   const {
     address,
@@ -128,18 +134,13 @@ export default function SilentPoolPage() {
     }
   };
 
-  if (!isConnected) {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white">
-        <WalletConnection />
-      </div>
-    );
-  }
   console.log("encryptedBalanceHandle", decryptedBalance);
+
+  console.log("events", events);
 
   return (
     <div className="min-h-screen bg-black p-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto relative">
         {/* Header */}
         <div className="mb-12 flex flex-col items-center justify-center">
           <h1 className="text-7xl font-extrabold mb-4 mt-5 text-center text-white uppercase font-syne ">
@@ -215,7 +216,7 @@ export default function SilentPoolPage() {
                       </h2>
                       {decryptedBalance ? (
                         <p className="text-5xl font-bold text-white font-syne">
-                          {formatNumber(Number(decryptedBalance))}
+                          {Number(decryptedBalance)}
                         </p>
                       ) : (
                         <p className="text-5xl font-bold text-white font-syne">
@@ -270,7 +271,7 @@ export default function SilentPoolPage() {
               </div>
             </div>
             {/* Deposit & Withdraw Forms */}
-            <div className="mx-auto border border-white/80 p-6 mb-10">
+            <div className="mx-auto border border-white/80 p-6 mb-5">
               <div className="flex justify-between items-start">
                 {" "}
                 {activeTab === "deposit" ? (
@@ -610,6 +611,57 @@ export default function SilentPoolPage() {
             </div>
           </div>
         </div> */}
+        <div className="border border-white/80 p-6 max-w-5xl mx-auto">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-3xl font-bold text-white font-syne">
+              Recent Activity
+            </h2>
+            <button
+              onClick={refresh}
+              className="bg-white text-black text-lg font-bold font-syne px-4 py-2 hover:bg-black hover:text-white border-2 border-transparent hover:border-white"
+            >
+              Refresh
+            </button>
+          </div>
+
+          {isLoading ? (
+            <div className="text-white/60 text-center py-8">
+              Loading recent events...
+            </div>
+          ) : events.length === 0 ? (
+            <div className="text-white/60 text-center py-8">
+              No recent activity
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {events.map((event, idx) => (
+                <div
+                  key={`${event.txHash}-${idx}`}
+                  className="border border-white/40 px-4 py-3 hover:border-white transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">
+                        <VscLock size={32} />
+                      </span>
+                      <div>
+                        <div className="text-white font-bold">{event.type}</div>
+                        <div className="text-white/60 text-xl leading-none mt-1">
+                          ******
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-white text-xl font-bold font-syne">
+                        {new Date(event.timestamp * 1000).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

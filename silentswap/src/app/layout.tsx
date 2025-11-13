@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { headers } from "next/headers";
 import { Toaster } from "sonner";
+import Header from "../layouts/header";
 import { DappWrapperWithProviders } from "../lib/fhevm/provider";
 import ContextProvider from "../lib/wagmi/provider";
 import "./globals.css";
@@ -34,7 +35,10 @@ export default async function RootLayout({
       >
         <ContextProvider cookies={cookies}>
           <Toaster />
-          <DappWrapperWithProviders>{children}</DappWrapperWithProviders>
+          <DappWrapperWithProviders>
+            <Header />
+            {children}
+          </DappWrapperWithProviders>
         </ContextProvider>
       </body>
     </html>

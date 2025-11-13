@@ -2,6 +2,7 @@
 
 import { useAppKit } from "@reown/appkit/react";
 import { useEffect, useState } from "react";
+import { sepolia } from "viem/chains";
 import { useAccount, useSwitchChain } from "wagmi";
 
 export function WalletConnection() {
@@ -21,12 +22,12 @@ export function WalletConnection() {
     return `${address?.slice(0, 6)}...${address?.slice(-4)}`;
   };
 
-  const isWrongNetwork = chainId !== 10143;
+  const isWrongNetwork = chainId !== (sepolia?.id as number);
 
   const handleSwitchNetwork = async () => {
     try {
       switchChain({
-        chainId: 10143,
+        chainId: sepolia?.id as number,
       });
     } catch (err) {
       console.error("Failed to switch network:", err);
@@ -41,13 +42,13 @@ export function WalletConnection() {
     }
   };
 
+  const btnClass =
+    "font-syne text-black hover:text-white hover:bg-black bg-white px-5 h-[50px] border border-transparent hover:border-white text-lg font-bold transition-all duration-200 ease-in-out";
+
   if (address && isWrongNetwork) {
     return (
-      <button
-        onClick={handleSwitchNetwork}
-        className="sm:px-4 sm:py-2 px-3 py-2 rounded-xl font-medium sm:text-base text-sm transition-colors ease-in-out duration-200 bg-[#836EF9] text-white hover:bg-[#836EF9]"
-      >
-        Switch to Monad Testnet
+      <button onClick={handleSwitchNetwork} className={btnClass}>
+        Switch Network
       </button>
     );
   }
@@ -56,8 +57,7 @@ export function WalletConnection() {
     <div>
       <button
         onClick={handleWalletAction}
-        className={`sm:px-4 sm:py-2 px-3 py-2 rounded-xl font-medium sm:text-base text-sm transition-colors ease-in-out duration-200 bg-[#836EF9] text-white hover:bg-[#836EF9]
-         `}
+        className={btnClass}
         // disabled={isConnecting || isInitialLoading}
       >
         {!address ? "Connect Wallet" : getDisplayText()}

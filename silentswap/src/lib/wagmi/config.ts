@@ -1,7 +1,7 @@
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import { sepolia } from "@reown/appkit/networks";
 import { createAppKit } from "@reown/appkit/react";
-import { cookieStorage, createStorage } from "wagmi";
+import { cookieStorage, createStorage, webSocket } from "wagmi";
 
 export const projectId = "71cb70b160a3c0bdf69a9b358d250c4c";
 
@@ -16,6 +16,12 @@ export const wagmiAdapter = new WagmiAdapter({
   ssr: true,
   networks: [sepolia],
   projectId,
+  transports: {
+    [sepolia.id]: webSocket(
+      process.env.NEXT_PUBLIC_ALCHEMY_WSS ||
+        "wss://sepolia.infura.io/ws/v3/ac915beb7bc346c9a1b4c49348fc3ab3"
+    ),
+  },
 });
 
 const metadata = {

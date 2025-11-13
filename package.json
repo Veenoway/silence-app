@@ -8,5 +8,8 @@
   "scripts": {
     "build:sdk": "npm run build --workspace=fhevm-sdk",
     "dev": "npm run dev --workspace=silentswap"
+  },
+  "dependencies": {
+    "react-icons": "^5.5.0"
   }
 }
