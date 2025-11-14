@@ -40,4 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-fhevm-sdk/node_modules
+fhevm-sdk/node_modules/*
+silentswap/.next/*  
+
+frontend/node_modules/*
+frontend/.next/*
+node_modules/*
