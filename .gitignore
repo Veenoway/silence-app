@@ -46,3 +46,4 @@ silentswap/.next/*
 frontend/node_modules/*
 frontend/.next/*
 node_modules/*
+node_modules
