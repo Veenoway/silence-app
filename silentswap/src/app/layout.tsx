@@ -34,7 +34,19 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ContextProvider cookies={cookies}>
-          <Toaster />
+          <Toaster
+            position="top-right"
+            richColors
+            theme="dark"
+            toastOptions={{
+              className:
+                "bg-white text-black text-sm font-bold font-syne p-4 border border-black",
+              style: {
+                background: "var(--background)",
+                color: "var(--foreground)",
+              },
+            }}
+          />
           <DappWrapperWithProviders>
             <Header />
             {children}

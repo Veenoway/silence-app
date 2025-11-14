@@ -1,35 +1,98 @@
 "use client";
 
-import {
-  toHex,
-  useFHEDecrypt,
-  useFHEEncryption,
-  useFhevm,
-  useInMemoryStorage,
-} from "fhevm-sdk";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useFhevm } from "fhevm-sdk";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { formatUnits, getContract, parseUnits } from "viem";
 import {
-  useAccount,
-  usePublicClient,
-  useReadContract,
-  useWalletClient,
-} from "wagmi";
-import { useWagmiEthers } from "../lib/wagmi/useWagmiEthers";
+  encodeAbiParameters,
+  formatUnits,
+  getContract,
+  keccak256,
+  parseAbiParameters,
+  parseUnits,
+  toHex,
+} from "viem";
+import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 
+// ===== TYPES =====
 export type Token = {
   symbol: string;
   address: `0x${string}`;
   decimals: number;
 };
 
-export type PoolStats = {
-  deposited: string;
-  withdrawn: string;
-  depositors: string;
+export type Note = {
+  nullifier: `0x${string}`;
+  secret: `0x${string}`;
+  commitment: `0x${string}`;
+  token: string;
+  amount: string;
+  chainId: number;
 };
 
+export type PoolStats = {
+  anonymitySetSize: string;
+};
+
+// ===== NOTE UTILITIES =====
+export const generateNote = (
+  token: string,
+  amount: string,
+  chainId: number
+): Note => {
+  // Générer des valeurs aléatoires de 32 bytes
+  const nullifier = toHex(crypto.getRandomValues(new Uint8Array(32)));
+  const secret = toHex(crypto.getRandomValues(new Uint8Array(32)));
+
+  // Calculer le commitment = keccak256(abi.encodePacked(nullifier, secret))
+  const commitment = keccak256(
+    encodeAbiParameters(parseAbiParameters("bytes32, bytes32"), [
+      nullifier,
+      secret,
+    ])
+  );
+
+  return {
+    nullifier,
+    secret,
+    commitment,
+    token,
+    amount,
+    chainId,
+  };
+};
+
+export const encodeNote = (note: Note): string => {
+  const noteString = JSON.stringify(note);
+  const base64 = Buffer.from(noteString).toString("base64");
+  return `silentpool-${base64}`;
+};
+
+export const decodeNote = (noteString: string): Note => {
+  if (!noteString.startsWith("silentpool-")) {
+    throw new Error("Invalid note format");
+  }
+
+  const base64 = noteString.replace("silentpool-", "");
+  const jsonString = Buffer.from(base64, "base64").toString("utf-8");
+  return JSON.parse(jsonString);
+};
+
+export const validateNote = (note: Note): boolean => {
+  try {
+    const computed = keccak256(
+      encodeAbiParameters(parseAbiParameters("bytes32, bytes32"), [
+        note.nullifier,
+        note.secret,
+      ])
+    );
+    return computed === note.commitment;
+  } catch {
+    return false;
+  }
+};
+
+// ===== CONTRACT ABIs =====
 const SILENTPOOL_ABI = [
   {
     type: "function",
@@ -37,29 +100,20 @@ const SILENTPOOL_ABI = [
     inputs: [
       { name: "token", type: "address" },
       { name: "amount", type: "uint256" },
+      { name: "commitment", type: "bytes32" },
     ],
     outputs: [],
   },
   {
     type: "function",
-    name: "getEncryptedBalance",
+    name: "withdraw",
     inputs: [
-      { name: "user", type: "address" },
-      { name: "token", type: "address" },
+      { name: "commitment", type: "bytes32" },
+      { name: "nullifier", type: "bytes32" },
+      { name: "secret", type: "bytes32" },
+      { name: "recipient", type: "address" },
     ],
-    outputs: [{ type: "bytes32", name: "" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "getPoolStats",
-    inputs: [{ name: "token", type: "address" }],
-    outputs: [
-      { type: "uint256", name: "deposited" },
-      { type: "uint256", name: "withdrawn" },
-      { type: "uint256", name: "depositors" },
-    ],
-    stateMutability: "view",
+    outputs: [{ type: "uint256", name: "requestId" }],
   },
   {
     type: "function",
@@ -69,23 +123,48 @@ const SILENTPOOL_ABI = [
   },
   {
     type: "function",
-    name: "requestWithdrawal",
-    inputs: [
-      { name: "token", type: "address" },
-      { name: "encryptedAmount", type: "bytes32" },
-      { name: "inputProof", type: "bytes" },
-      { name: "recipient", type: "address" },
-    ],
-    outputs: [{ type: "uint256", name: "requestId" }],
+    name: "getAnonymitySetSize",
+    inputs: [{ name: "token", type: "address" }],
+    outputs: [{ type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "commitmentExists",
+    inputs: [{ name: "commitment", type: "bytes32" }],
+    outputs: [{ type: "bool" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "isCommitmentSpent",
+    inputs: [{ name: "commitment", type: "bytes32" }],
+    outputs: [{ type: "bool" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "isNullifierUsed",
+    inputs: [{ name: "nullifier", type: "bytes32" }],
+    outputs: [{ type: "bool" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getCommitmentAge",
+    inputs: [{ name: "commitment", type: "bytes32" }],
+    outputs: [{ type: "uint256" }],
+    stateMutability: "view",
   },
   {
     type: "function",
     name: "withdrawalRequests",
     inputs: [{ name: "requestId", type: "uint256" }],
     outputs: [
-      { name: "user", type: "address" },
-      { name: "token", type: "address" },
+      { name: "commitment", type: "bytes32" },
+      { name: "nullifier", type: "bytes32" },
       { name: "recipient", type: "address" },
+      { name: "token", type: "address" },
       { name: "fulfilled", type: "bool" },
     ],
     stateMutability: "view",
@@ -117,14 +196,7 @@ const ERC20_ABI = [
   },
 ] as const;
 
-const isEmptyHandle = (handle: string | undefined) => {
-  if (!handle) return true;
-  return (
-    handle ===
-    "0x0000000000000000000000000000000000000000000000000000000000000000"
-  );
-};
-
+// ===== HOOK =====
 export const useSilentPool = (parameters: {
   silentPoolAddress: `0x${string}`;
   tokens: Token[];
@@ -134,22 +206,18 @@ export const useSilentPool = (parameters: {
   const { address, isConnected, chain } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
-  const { ethersSigner } = useWagmiEthers();
-  const { storage: fhevmDecryptionSignatureStorage } = useInMemoryStorage();
 
   const [message, setMessage] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [tokenBalances, setTokenBalances] = useState<Record<string, string>>(
     {}
   );
+  const [poolStats, setPoolStats] = useState<Record<string, PoolStats>>({});
+  const [selectedToken, setSelectedToken] = useState<Token>(tokens[0]);
+  const [generatedNote, setGeneratedNote] = useState<string>("");
   const [mintingState, setMintingState] = useState<
     "idle" | "minting" | "minted" | "error"
   >("idle");
-  const [poolStats, setPoolStats] = useState<Record<string, PoolStats>>({});
-  const [selectedToken, setSelectedToken] = useState<Token>(tokens[0]);
-  const [pendingWithdrawals, setPendingWithdrawals] = useState<Set<number>>(
-    new Set()
-  );
 
   const {
     instance: fhevmInstance,
@@ -164,129 +232,17 @@ export const useSilentPool = (parameters: {
   const isFhevmReady = fhevmStatus === "ready" && !!fhevmInstance;
   const canInteract = isConnected && isFhevmReady && !isProcessing;
 
-  const { canEncrypt, encryptWith } = useFHEEncryption({
-    instance: fhevmInstance,
-    ethersSigner: ethersSigner as any,
-    contractAddress: silentPoolAddress,
-  });
-
-  const { data: encryptedBalanceHandle, refetch: refetchBalance } =
-    useReadContract({
-      address: silentPoolAddress,
-      abi: SILENTPOOL_ABI,
-      functionName: "getEncryptedBalance",
-      args:
-        address && selectedToken ? [address, selectedToken.address] : undefined,
-      query: {
-        enabled: !!address && !!selectedToken && isFhevmReady,
-      },
-    });
-
-  console.log("Encrypted balance handle:", {
-    handle: encryptedBalanceHandle,
-    isEmpty: isEmptyHandle(encryptedBalanceHandle as string),
-    token: selectedToken?.symbol,
-  });
-
-  const decryptRequests = useMemo(() => {
-    const handleStr = encryptedBalanceHandle as string;
-
-    console.log("Building decrypt requests:", {
-      handle: handleStr,
-      isEmpty: isEmptyHandle(handleStr),
-      hasToken: !!selectedToken,
-    });
-
-    if (isEmptyHandle(handleStr) || !selectedToken) {
-      console.log("Skipping decrypt: empty handle or no token");
-      return undefined;
-    }
-
-    const requests = [
-      {
-        handle: handleStr,
-        contractAddress: silentPoolAddress,
-      },
-    ];
-
-    console.log("Decrypt requests created:", requests);
-    return requests;
-  }, [encryptedBalanceHandle, selectedToken, silentPoolAddress]);
-
-  const {
-    canDecrypt,
-    decrypt: decryptBalance,
-    isDecrypting,
-    results: decryptedResults,
-    message: decryptMessage,
-    error: decryptError,
-  } = useFHEDecrypt({
-    instance: fhevmInstance,
-    ethersSigner: ethersSigner as any,
-    fhevmDecryptionSignatureStorage,
-    chainId: chain?.id,
-    requests: decryptRequests,
-  });
-
-  useEffect(() => {
-    console.log("Decrypt hook state:", {
-      canDecrypt,
-      isDecrypting,
-      hasResults: !!decryptedResults,
-      decryptMessage,
-      decryptError,
-      hasRequests: !!decryptRequests,
-      requestsLength: decryptRequests?.length,
-    });
-    if (decryptError) {
-      console.error("Decrypt error:", decryptError);
-      setMessage(
-        `Decrypt failed: ${
-          decryptError instanceof Error
-            ? decryptError.message
-            : String(decryptError)
-        }`
-      );
-    }
-    if (decryptMessage) {
-      setMessage(decryptMessage);
-    }
-  }, [
-    canDecrypt,
-    isDecrypting,
-    decryptedResults,
-    decryptMessage,
-    decryptRequests,
-  ]);
-
-  const decryptedBalance = useMemo(() => {
-    if (!encryptedBalanceHandle || !decryptedResults) return undefined;
-    const handleStr = encryptedBalanceHandle as string;
-    const result = decryptedResults[handleStr];
-
-    console.log("Decrypted balance:", {
-      handle: handleStr,
-      result,
-      allResults: decryptedResults,
-    });
-
-    return result;
-  }, [encryptedBalanceHandle, decryptedResults]);
-
-  const hasBalance = useMemo(() => {
-    return !isEmptyHandle(encryptedBalanceHandle as string);
-  }, [encryptedBalanceHandle]);
-
+  // ===== LOAD BALANCES =====
   const loadBalances = useCallback(async () => {
     if (!address || !publicClient) return;
 
-    setMessage("Loading balances...");
     const newBalances: Record<string, string> = {};
     const newStats: Record<string, PoolStats> = {};
 
     try {
       await Promise.all(
         tokens.map(async (token) => {
+          // Wallet balance
           const tokenContract = getContract({
             address: token.address,
             abi: ERC20_ABI,
@@ -295,30 +251,25 @@ export const useSilentPool = (parameters: {
           const balance = await tokenContract.read.balanceOf([address]);
           newBalances[token.symbol] = formatUnits(balance, token.decimals);
 
+          // Pool stats
           const poolContract = getContract({
             address: silentPoolAddress,
             abi: SILENTPOOL_ABI,
             client: publicClient,
           });
-          const [deposited, withdrawn, depositors] =
-            await poolContract.read.getPoolStats([token.address]);
+          const anonymitySetSize = await poolContract.read.getAnonymitySetSize([
+            token.address,
+          ]);
           newStats[token.symbol] = {
-            deposited: formatUnits(deposited, token.decimals),
-            withdrawn: formatUnits(withdrawn, token.decimals),
-            depositors: depositors.toString(),
+            anonymitySetSize: anonymitySetSize.toString(),
           };
         })
       );
 
       setTokenBalances(newBalances);
       setPoolStats(newStats);
-      setMessage("");
     } catch (error) {
-      setMessage(
-        `Error loading balances: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      console.error("Error loading balances:", error);
     }
   }, [address, publicClient, tokens, silentPoolAddress]);
 
@@ -328,6 +279,7 @@ export const useSilentPool = (parameters: {
     }
   }, [address, loadBalances]);
 
+  // ===== MINT TOKEN =====
   const mintToken = useCallback(
     async (token: Token) => {
       if (!walletClient || !address) return;
@@ -344,7 +296,7 @@ export const useSilentPool = (parameters: {
         await publicClient!.waitForTransactionReceipt({ hash: mintHash });
 
         setMintingState("minted");
-        toast.success(`${token.symbol} minted successfully!`);
+        toast.success(`✅ ${token.symbol} minted!`);
         await loadBalances();
       } catch (error) {
         setMintingState("error");
@@ -354,25 +306,30 @@ export const useSilentPool = (parameters: {
           }`
         );
       } finally {
-        setTimeout(() => {
-          setMintingState("idle");
-        }, 3000);
+        setTimeout(() => setMintingState("idle"), 3000);
       }
     },
     [walletClient, address, publicClient, loadBalances]
   );
 
+  // ===== DEPOSIT (avec génération de note) =====
   const deposit = useCallback(
     async (token: Token, amount: string) => {
-      if (!walletClient || !address || !amount) return;
+      if (!walletClient || !address || !chain) return;
 
       setIsProcessing(true);
-      toast.loading(`Starting deposit of ${amount} ${token.symbol}...`);
+      toast.loading("Generating secret note...");
 
       try {
-        const amountBigInt = parseUnits(amount, token.decimals);
+        // 1. ✅ Générer la note AVANT le deposit
+        const note = generateNote(token.address, amount, chain.id);
+        const noteString = encodeNote(note);
 
+        console.log("📝 Generated note (SAVE THIS!):", noteString);
+
+        // 2. Approve
         toast.loading("Approving token...");
+        const amountBigInt = parseUnits(amount, token.decimals);
         const tokenContract = getContract({
           address: token.address,
           abi: ERC20_ABI,
@@ -385,10 +342,10 @@ export const useSilentPool = (parameters: {
         await publicClient!.waitForTransactionReceipt({
           hash: approveHash,
           timeout: 60_000,
-          confirmations: 1,
         });
 
-        toast.loading("Depositing...");
+        // 3. ✅ Deposit avec commitment
+        toast.loading("Depositing anonymously...");
         const poolContract = getContract({
           address: silentPoolAddress,
           abi: SILENTPOOL_ABI,
@@ -398,25 +355,27 @@ export const useSilentPool = (parameters: {
         const depositHash = await poolContract.write.deposit([
           token.address,
           amountBigInt,
+          note.commitment, // ✅ Commitment anonyme!
         ]);
-        const receipt = await publicClient!.waitForTransactionReceipt({
+
+        await publicClient!.waitForTransactionReceipt({
           hash: depositHash,
           timeout: 120_000,
           confirmations: 2,
         });
 
-        toast.success("Deposit successful! Waiting for balance update...");
+        toast.success("✅ Deposit complete! SAVE YOUR NOTE!");
 
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        // 4. ✅ Stocker la note pour l'afficher
+        setGeneratedNote(noteString);
 
         await loadBalances();
-        await refetchBalance();
 
-        toast.success("Deposit complete!");
+        return noteString;
       } catch (error) {
         console.error("Deposit error:", error);
         toast.error(
-          `Deposit failed: ${
+          `❌ Deposit failed: ${
             error instanceof Error ? error.message : String(error)
           }`
         );
@@ -428,71 +387,43 @@ export const useSilentPool = (parameters: {
     [
       walletClient,
       address,
+      chain,
       publicClient,
       silentPoolAddress,
       loadBalances,
-      refetchBalance,
     ]
   );
 
+  // ===== WITHDRAW (avec note) =====
   const withdraw = useCallback(
-    async (token: Token, amount: string, recipient: string) => {
-      if (
-        !walletClient ||
-        !address ||
-        !amount ||
-        !fhevmInstance ||
-        !canEncrypt
-      ) {
-        toast.error("Not ready to withdraw");
-        return;
-      }
+    async (noteString: string, recipient: string) => {
+      if (!walletClient) return;
 
       setIsProcessing(true);
-      toast.loading(`Starting withdrawal of ${amount} ${token.symbol}...`);
-      try {
-        const amountBigInt = parseUnits(amount, token.decimals);
-        const encryptedInput = await encryptWith((builder) => {
-          builder.add128(amountBigInt);
-        });
+      toast.loading("Decoding note...");
 
-        if (!encryptedInput) {
-          throw new Error("Failed to create encrypted input");
+      try {
+        // 1. ✅ Décoder la note
+        const note = decodeNote(noteString);
+
+        // Valider la note
+        if (!validateNote(note)) {
+          throw new Error("Invalid note - commitment doesn't match");
         }
 
-        let handleHex: `0x${string}`;
-        let inputProofHex: `0x${string}`;
-
-        if (encryptedInput.handles[0] instanceof Uint8Array)
-          handleHex = toHex(encryptedInput.handles[0]);
-        else if (typeof encryptedInput.handles[0] === "string")
-          handleHex = encryptedInput.handles[0] as `0x${string}`;
-        else
-          handleHex = toHex(
-            new Uint8Array(Object.values(encryptedInput.handles[0] as any))
+        // Vérifier que la note est pour la bonne chain
+        if (chain && note.chainId !== chain.id) {
+          toast.error(
+            `⚠️ Note is for chain ${note.chainId}, but you're on chain ${chain.id}`
           );
+        }
 
-        if (encryptedInput.inputProof instanceof Uint8Array)
-          inputProofHex = toHex(encryptedInput.inputProof);
-        else if (typeof encryptedInput.inputProof === "string")
-          inputProofHex = encryptedInput.inputProof as `0x${string}`;
-        else
-          inputProofHex = toHex(
-            new Uint8Array(Object.values(encryptedInput.inputProof as any))
-          );
-
-        console.log("Converted to hex:", {
-          handleHex,
-          inputProofHex,
-          handleLength: handleHex.length,
-          proofLength: inputProofHex.length,
-        });
-
+        // 2. ✅ Withdraw
         toast.loading(
           `Requesting withdrawal to ${recipient.slice(
             0,
             6
-          )}...${recipient.slice(-4)}...`
+          )}...${recipient.slice(-4)}`
         );
 
         const poolContract = getContract({
@@ -501,14 +432,14 @@ export const useSilentPool = (parameters: {
           client: walletClient,
         });
 
-        const withdrawHash = await poolContract.write.requestWithdrawal([
-          token.address,
-          handleHex,
-          inputProofHex,
-          recipient,
+        const withdrawHash = await poolContract.write.withdraw([
+          note.commitment,
+          note.nullifier,
+          note.secret,
+          recipient as `0x${string}`,
         ]);
 
-        toast.loading("Waiting for transaction confirmation...");
+        toast.loading("Waiting for transaction...");
 
         await publicClient!.waitForTransactionReceipt({
           hash: withdrawHash,
@@ -517,20 +448,20 @@ export const useSilentPool = (parameters: {
         });
 
         toast.success(
-          "Withdrawal requested! Gateway is processing (30-60 seconds)..."
+          "✅ Withdrawal requested! Gateway is processing (30-60 sec)..."
         );
 
+        // 3. Attendre le Gateway
         await new Promise((resolve) => setTimeout(resolve, 60000));
 
-        toast.loading("Checking if withdrawal is completed...");
+        toast.loading("Checking if withdrawal completed...");
         await loadBalances();
-        await refetchBalance();
 
-        toast.success("Withdrawal complete!");
+        toast.success("✅ Withdrawal complete!");
       } catch (error) {
         console.error("Withdrawal error:", error);
         toast.error(
-          `Withdrawal failed: ${
+          `❌ Withdrawal failed: ${
             error instanceof Error ? error.message : String(error)
           }`
         );
@@ -539,18 +470,55 @@ export const useSilentPool = (parameters: {
         setIsProcessing(false);
       }
     },
-    [
-      walletClient,
-      address,
-      fhevmInstance,
-      canEncrypt,
-      encryptWith,
-      publicClient,
-      silentPoolAddress,
-      loadBalances,
-      refetchBalance,
-    ]
+    [walletClient, chain, publicClient, silentPoolAddress, loadBalances]
   );
+
+  // ===== CHECK NOTE STATUS =====
+  const checkNoteStatus = useCallback(
+    async (noteString: string) => {
+      if (!publicClient) return null;
+
+      try {
+        const note = decodeNote(noteString);
+
+        const poolContract = getContract({
+          address: silentPoolAddress,
+          abi: SILENTPOOL_ABI,
+          client: publicClient,
+        });
+
+        const [exists, isSpent, nullifierUsed] = await Promise.all([
+          poolContract.read.commitmentExists([note.commitment]),
+          poolContract.read.isCommitmentSpent([note.commitment]),
+          poolContract.read.isNullifierUsed([note.nullifier]),
+        ]);
+
+        return {
+          exists,
+          isSpent,
+          nullifierUsed,
+          canWithdraw: exists && !isSpent && !nullifierUsed,
+        };
+      } catch (error) {
+        console.error("Error checking note:", error);
+        return null;
+      }
+    },
+    [publicClient, silentPoolAddress]
+  );
+
+  const getMintingState = useCallback(() => {
+    switch (mintingState) {
+      case "minting":
+        return "Claiming...";
+      case "minted":
+        return "Claimed!";
+      case "error":
+        return "Error";
+      default:
+        return "Claim";
+    }
+  }, [mintingState]);
 
   const testPermissions = useCallback(async () => {
     if (!publicClient || !address || !selectedToken) return;
@@ -590,71 +558,46 @@ export const useSilentPool = (parameters: {
     }
   }, [publicClient, address, selectedToken, silentPoolAddress]);
 
-  const refreshPermissions = useCallback(async () => {
-    if (!address || !isFhevmReady) return;
-
-    setMessage("Refreshing FHE permissions...");
-
-    try {
-      await refetchBalance();
-
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      setMessage("Permissions refreshed! Try decrypting now.");
-    } catch (error) {
-      setMessage(
-        `Error refreshing: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-    }
-  }, [address, isFhevmReady, refetchBalance]);
-
-  const getMintingState = useCallback(() => {
-    switch (mintingState) {
-      case "minting":
-        return "Claiming...";
-      case "minted":
-        return "Claimed!";
-      case "idle":
-        return "Claim";
-      case "error":
-        return "Error";
-      default:
-        return "Claim";
-    }
-  }, [mintingState]);
-
   return {
+    // Connection
     address,
     isConnected,
     chainId: chain?.id,
+
+    // FHEVM
     fhevmInstance,
     fhevmStatus,
     fhevmError,
     isFhevmReady,
+
+    // Token
     selectedToken,
     setSelectedToken,
     tokens,
     tokenBalances,
     poolStats,
-    loadBalances,
-    encryptedBalanceHandle,
-    decryptedBalance,
-    canDecrypt,
-    decryptBalance,
-    isDecrypting,
-    hasBalance, // ✅ Nouveau!
+
+    // Actions
     canInteract,
     deposit,
+    withdraw,
     mintToken,
+    loadBalances,
+    checkNoteStatus,
+
+    // State
     message,
     isProcessing,
-    refreshPermissions,
-    testPermissions,
-    withdraw,
-    canEncrypt,
+    generatedNote,
+    setGeneratedNote,
     mintingState,
     getMintingState,
+    testPermissions,
+
+    // Utils
+    generateNote,
+    encodeNote,
+    decodeNote,
+    validateNote,
   };
 };

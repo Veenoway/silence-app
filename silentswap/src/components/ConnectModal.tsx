@@ -43,7 +43,7 @@ export function WalletConnection() {
   };
 
   const btnClass =
-    "font-syne text-black hover:text-white hover:bg-black bg-white px-5 h-[50px] border border-transparent hover:border-white text-lg font-bold transition-all duration-200 ease-in-out";
+    "font-syne text-black hover:text-white hover:bg-black bg-white px-3 h-[45px] border border-transparent hover:border-white text-base font-bold transition-all duration-200 ease-in-out";
 
   if (address && isWrongNetwork) {
     return (
