@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatUnits, getContract } from "viem";
 import { useAccount, usePublicClient } from "wagmi";
 
@@ -10,127 +10,131 @@ export type Token = {
   decimals: number;
 };
 
+export type TokenBalance = {
+  symbol: string;
+  balance: string;
+  balanceWei: bigint;
+};
+
 export type PoolInfo = {
-  isActive: boolean;
+  token: string;
+  poolId: number;
   denomination: string;
-  depositCount: string;
-  anonymitySetSize: string;
+  depositCount: number;
+  anonymitySetSize: number;
+  isActive: boolean;
 };
 
 const ERC20_ABI = [
   {
     type: "function",
     name: "balanceOf",
-    inputs: [{ type: "address" }],
+    inputs: [{ name: "account", type: "address" }],
     outputs: [{ type: "uint256" }],
     stateMutability: "view",
   },
 ] as const;
 
-const SILENTPOOL_ABI = [
-  {
-    type: "function",
-    name: "getPoolInfo",
-    inputs: [
-      { name: "token", type: "address" },
-      { name: "poolId", type: "uint256" },
-    ],
-    outputs: [
-      { name: "isActive", type: "bool" },
-      { name: "denomination", type: "uint128" },
-      { name: "depositCount", type: "uint256" },
-      { name: "anonymitySetSize", type: "uint256" },
-    ],
-    stateMutability: "view",
-  },
-] as const;
-
-export const useTokenBalances = (
-  silentPoolAddress: `0x${string}`,
-  tokens: Token[]
-) => {
-  const { address, isConnected } = useAccount();
+export const useTokenBalances = (tokens: Token[]) => {
   const publicClient = usePublicClient();
+  const { address } = useAccount();
 
-  const [tokenBalances, setTokenBalances] = useState<Record<string, string>>(
-    {}
-  );
-  const [poolInfos, setPoolInfos] = useState<
-    Record<string, Record<number, PoolInfo>>
-  >({});
+  const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
+  const [poolInfos, setPoolInfos] = useState<PoolInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const loadBalances = useCallback(async () => {
-    if (!address || !publicClient || !isConnected) return;
+  const loadingRef = useRef(false);
+  const lastAddressRef = useRef<string>("");
 
-    setIsLoading(true);
+  const loadBalances = useCallback(
+    async (force = false) => {
+      if (!publicClient || !address || loadingRef.current) {
+        return;
+      }
 
-    try {
-      const newBalances: Record<string, string> = {};
-      const newPoolInfos: Record<string, Record<number, PoolInfo>> = {};
+      if (!force && lastAddressRef.current === address) {
+        return;
+      }
 
-      await Promise.all(
-        tokens.map(async (token) => {
+      console.log("Loading balances");
+      loadingRef.current = true;
+      lastAddressRef.current = address;
+      setIsLoading(true);
+
+      try {
+        const balances: TokenBalance[] = [];
+
+        for (const token of tokens) {
           try {
-            const tokenContract = getContract({
-              address: token.address,
-              abi: ERC20_ABI,
-              client: publicClient,
-            });
-            const balance = await tokenContract.read.balanceOf([address]);
-            newBalances[token.symbol] = formatUnits(balance, token.decimals);
+            if (
+              token.address === "0x0000000000000000000000000000000000000000"
+            ) {
+              const balance = await publicClient.getBalance({ address });
+              balances.push({
+                symbol: token.symbol,
+                balance: formatUnits(balance, 18),
+                balanceWei: balance,
+              });
+            } else {
+              const tokenContract = getContract({
+                address: process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`,
+                abi: ERC20_ABI,
+                client: publicClient,
+              });
 
-            const poolContract = getContract({
-              address: silentPoolAddress,
-              abi: SILENTPOOL_ABI,
-              client: publicClient,
-            });
+              const balance = (await tokenContract.read.balanceOf([
+                address,
+              ])) as bigint;
 
-            const [isActive, denomination, depositCount, anonymitySetSize] =
-              await poolContract.read.getPoolInfo([token.address, BigInt(0)]);
+              console.log("balance", balance);
 
-            if (!newPoolInfos[token.symbol]) {
-              newPoolInfos[token.symbol] = {};
+              balances.push({
+                symbol: token.symbol,
+                balance: formatUnits(balance, token.decimals),
+                balanceWei: balance,
+              });
             }
-
-            newPoolInfos[token.symbol][0] = {
-              isActive,
-              denomination: formatUnits(denomination, token.decimals),
-              depositCount: depositCount.toString(),
-              anonymitySetSize: anonymitySetSize.toString(),
-            };
           } catch (error) {
-            console.error(`Error loading data for ${token.symbol}:`, error);
-            newBalances[token.symbol] = "0";
+            balances.push({
+              symbol: token.symbol,
+              balance: "0",
+              balanceWei: BigInt(0),
+            });
           }
-        })
-      );
+        }
 
-      setTokenBalances(newBalances);
-      setPoolInfos(newPoolInfos);
-    } catch (error) {
-      console.error("Error loading balances:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [address, publicClient, isConnected, tokens, silentPoolAddress]);
+        setTokenBalances(balances);
+      } catch (error) {
+      } finally {
+        setIsLoading(false);
+        loadingRef.current = false;
+      }
+    },
+    [publicClient, address, tokens]
+  );
 
   useEffect(() => {
-    if (address && isConnected) {
-      loadBalances();
+    if (address && publicClient) {
+      loadBalances(false);
+    } else {
+      setTokenBalances([]);
+      lastAddressRef.current = "";
     }
-  }, [address, isConnected, loadBalances]);
+  }, [address, publicClient, loadBalances]);
 
   const getTokenBalance = useCallback(
-    (tokenSymbol: string): string => {
-      return tokenBalances[tokenSymbol] || "0";
+    (symbol: string): string => {
+      const balance = tokenBalances.find((b) => b.symbol === symbol);
+      return balance?.balance || "0";
     },
     [tokenBalances]
   );
 
   const getPoolInfo = useCallback(
-    (tokenSymbol: string, poolId: number = 0): PoolInfo | null => {
-      return poolInfos[tokenSymbol]?.[poolId] || null;
+    (token: string, poolId: number): PoolInfo | null => {
+      return (
+        poolInfos.find((p) => p.token === token && p.poolId === poolId) || null
+      );
     },
     [poolInfos]
   );

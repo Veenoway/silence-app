@@ -62,6 +62,9 @@ export const WithdrawDrawer = ({
   const readyWithdrawals = getReadyWithdrawals();
   const pendingWithdrawalsFiltered = getPendingWithdrawals();
 
+  console.log("readyWithdrawals", readyWithdrawals);
+  console.log("pendingWithdrawalsFiltered", pendingWithdrawalsFiltered);
+
   return (
     <>
       <AnimatePresence>
@@ -106,6 +109,7 @@ export const WithdrawDrawer = ({
             }}
             className="fixed top-0 right-0 shadow-xl shadow-black bg-black w-full space-y-6 border-l border-white/10 p-6 max-w-[400px] h-screen z-50"
           >
+            {/* Header */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{
@@ -136,104 +140,120 @@ export const WithdrawDrawer = ({
               </button>
             </motion.div>
 
-            <motion.div
-              initial="hidden"
-              animate="visible"
-              variants={{
-                visible: {
-                  transition: {
-                    staggerChildren: 0.05,
-                  },
-                },
-              }}
-            >
+            {/* ⭐ Retirer initial/animate du container, juste garder un div */}
+            <div className="space-y-6">
+              {/* Ready to Claim */}
               {readyWithdrawals.length > 0 && (
-                <motion.div
-                  variants={{
-                    hidden: { opacity: 0, x: 20 },
-                    visible: { opacity: 1, x: 0 },
-                  }}
-                  className="space-y-3"
-                >
+                <div className="space-y-3">
                   <h3 className="text-lg font-medium text-white flex items-center gap-2">
                     Ready to Claim ({readyWithdrawals.length})
                   </h3>
-                  {readyWithdrawals.map((withdrawal, index) => (
-                    <motion.div
-                      key={withdrawal.id}
-                      variants={{
-                        hidden: { opacity: 0, x: 20 },
-                        visible: {
+
+                  {/* ⭐ AnimatePresence pour animer l'entrée/sortie */}
+                  <AnimatePresence mode="popLayout">
+                    {readyWithdrawals.map((withdrawal) => (
+                      <motion.div
+                        key={withdrawal.id}
+                        initial={{ opacity: 0, x: 20, height: 0 }}
+                        animate={{
                           opacity: 1,
                           x: 0,
-                          transition: { delay: index * 0.05 },
-                        },
-                      }}
-                    >
-                      <WithdrawalCard
-                        withdrawal={withdrawal}
-                        status="ready"
-                        onClaim={() => handleClaim(withdrawal)}
-                        isProcessing={isWithdrawing}
-                        isExpanded={expandedId === withdrawal.id}
-                        onToggle={() =>
-                          setExpandedId(
-                            expandedId === withdrawal.id ? null : withdrawal.id
-                          )
-                        }
-                        timeRemaining={getTimeRemaining(withdrawal.expiresAt)}
-                      />
-                    </motion.div>
-                  ))}
-                </motion.div>
+                          height: "auto",
+                          transition: {
+                            duration: 0.3,
+                            ease: "easeOut",
+                          },
+                        }}
+                        exit={{
+                          opacity: 0,
+                          x: -20,
+                          height: 0,
+                          transition: {
+                            duration: 0.2,
+                            ease: "easeIn",
+                          },
+                        }}
+                        layout // ⭐ Important pour la transition smooth
+                      >
+                        <WithdrawalCard
+                          withdrawal={withdrawal}
+                          status="ready"
+                          onClaim={() => handleClaim(withdrawal)}
+                          isProcessing={isWithdrawing}
+                          isExpanded={expandedId === withdrawal.id}
+                          onToggle={() =>
+                            setExpandedId(
+                              expandedId === withdrawal.id
+                                ? null
+                                : withdrawal.id
+                            )
+                          }
+                          timeRemaining={getTimeRemaining(withdrawal.expiresAt)}
+                        />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
               )}
 
+              {/* Pending */}
               {pendingWithdrawalsFiltered.length > 0 && (
-                <motion.div
-                  variants={{
-                    hidden: { opacity: 0, x: 20 },
-                    visible: { opacity: 1, x: 0 },
-                  }}
-                  className="space-y-3"
-                >
-                  <h3 className="text-lg font-medium text-white flex items-center gap-2 mt-5">
+                <div className="space-y-3">
+                  <h3 className="text-lg font-medium text-white flex items-center gap-2">
                     Waiting ({pendingWithdrawalsFiltered.length})
                   </h3>
-                  {pendingWithdrawalsFiltered.map((withdrawal, index) => (
-                    <motion.div
-                      key={withdrawal.id}
-                      variants={{
-                        hidden: { opacity: 0, x: 20 },
-                        visible: {
+
+                  {/* ⭐ AnimatePresence pour animer l'entrée/sortie */}
+                  <AnimatePresence mode="popLayout">
+                    {pendingWithdrawalsFiltered.map((withdrawal) => (
+                      <motion.div
+                        key={withdrawal.id}
+                        initial={{ opacity: 0, x: 20, height: 0 }}
+                        animate={{
                           opacity: 1,
                           x: 0,
-                          transition: { delay: index * 0.05 },
-                        },
-                      }}
-                    >
-                      <WithdrawalCard
-                        withdrawal={withdrawal}
-                        status="pending"
-                        isProcessing={false}
-                        isExpanded={expandedId === withdrawal.id}
-                        onToggle={() =>
-                          setExpandedId(
-                            expandedId === withdrawal.id ? null : withdrawal.id
-                          )
-                        }
-                        timeRemaining={getTimeRemaining(withdrawal.expiresAt)}
-                      />
-                    </motion.div>
-                  ))}
-                </motion.div>
+                          height: "auto",
+                          transition: {
+                            duration: 0.3,
+                            ease: "easeOut",
+                          },
+                        }}
+                        exit={{
+                          opacity: 0,
+                          x: -20,
+                          height: 0,
+                          transition: {
+                            duration: 0.2,
+                            ease: "easeIn",
+                          },
+                        }}
+                        layout
+                      >
+                        <WithdrawalCard
+                          withdrawal={withdrawal}
+                          status="pending"
+                          isProcessing={false}
+                          isExpanded={expandedId === withdrawal.id}
+                          onToggle={() =>
+                            setExpandedId(
+                              expandedId === withdrawal.id
+                                ? null
+                                : withdrawal.id
+                            )
+                          }
+                          onClaim={() => handleClaim(withdrawal)}
+                          timeRemaining={getTimeRemaining(withdrawal.expiresAt)}
+                        />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
               )}
 
               {pendingWithdrawals.length === 0 && (
                 <motion.div
-                  variants={{
-                    hidden: { opacity: 0, scale: 0.8 },
-                    visible: { opacity: 1, scale: 1 },
-                  }}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
                   className="text-center py-16"
                 >
                   <h3 className="text-lg font-bold text-white mb-2">
@@ -244,7 +264,7 @@ export const WithdrawDrawer = ({
                   </p>
                 </motion.div>
               )}
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -255,7 +275,7 @@ export const WithdrawDrawer = ({
 type WithdrawalCardProps = {
   withdrawal: PendingWithdrawal;
   status: "ready" | "pending";
-  onClaim?: () => void;
+  onClaim: () => void;
   isProcessing: boolean;
   isExpanded: boolean;
   onToggle: () => void;
@@ -440,18 +460,16 @@ function WithdrawalCard({
 
               {status === "ready" && onClaim && (
                 <motion.button
-                  initial={{ opacity: 0, scale: 1, y: 0 }}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{
                     opacity: 1,
-                    scale: 1,
                     y: 0,
                   }}
                   transition={{
-                    delay: 0,
-                    type: "spring",
-                    stiffness: 300,
-                    damping: 20,
+                    delay: 0.25,
                   }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={onClaim}
                   disabled={isProcessing}
                   className="w-full bg-white hover:bg-black text-black hover:text-white border border-white hover:border-white font-bold py-2 text-base transition-all disabled:opacity-50 disabled:cursor-not-allowed"

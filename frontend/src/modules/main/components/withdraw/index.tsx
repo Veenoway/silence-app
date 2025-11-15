@@ -259,7 +259,7 @@ export function Withdraw({
       <button
         onClick={handleWithdraw}
         disabled={isWithdrawing || !noteString.trim() || !isConnected}
-        className="w-full bg-white text-black font-bold text-lg h-12 rounded hover:bg-black hover:text-white hover:border-white border border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+        className="w-full bg-white text-black font-bold text-lg h-12 rounded hover:bg-black hover:text-white hover:border-white border border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isWithdrawing ? "Processing..." : "Withdraw"}
       </button>

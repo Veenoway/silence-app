@@ -19,22 +19,32 @@ export type PendingWithdrawal = {
 const STORAGE_KEY = "silentpool_pending_withdrawals";
 
 export const useWithdrawalManager = (chainId?: number) => {
-  const { pendingWithdrawals, setPendingWithdrawals } = useWithdrawalStore();
+  const {
+    pendingWithdrawals,
+    setPendingWithdrawals,
+    addPendingWithdrawal,
+    removePendingWithdrawal,
+  } = useWithdrawalStore();
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const all = JSON.parse(stored) as PendingWithdrawal[];
-        const filtered = chainId
-          ? all.filter((w) => w.chainId === chainId)
-          : all;
-        setPendingWithdrawals(filtered);
+    const loadWithdrawals = async () => {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const all = JSON.parse(stored) as PendingWithdrawal[];
+          const filtered = chainId
+            ? all.filter((w) => w.chainId === chainId)
+            : all;
+
+          setPendingWithdrawals(filtered);
+        }
+      } catch (error) {
+        console.error("Error loading pending withdrawals:", error);
       }
-    } catch (error) {
-      console.error("Error loading pending withdrawals:", error);
-    }
-  }, [chainId]);
+    };
+
+    loadWithdrawals();
+  }, [chainId, setPendingWithdrawals]);
 
   const addWithdrawal = (withdrawal: Omit<PendingWithdrawal, "id">) => {
     const newWithdrawal: PendingWithdrawal = {
@@ -44,24 +54,43 @@ export const useWithdrawalManager = (chainId?: number) => {
 
     const stored = localStorage.getItem(STORAGE_KEY);
     const all = stored ? (JSON.parse(stored) as PendingWithdrawal[]) : [];
+
+    const exists = all.some(
+      (w) =>
+        w.requestId === newWithdrawal.requestId || w.id === newWithdrawal.id
+    );
+
+    if (exists) {
+      return newWithdrawal.id;
+    }
+
     all.push(newWithdrawal);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
 
-    setPendingWithdrawals([...pendingWithdrawals, newWithdrawal]);
+    addPendingWithdrawal(newWithdrawal);
+
     return newWithdrawal.id;
   };
 
   const removeWithdrawal = (id: string) => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return;
+    if (!stored) {
+      return;
+    }
 
     const all = JSON.parse(stored) as PendingWithdrawal[];
-    const filtered = all.filter((w) => w.id !== id);
+
+    const filtered = all.filter((w) => {
+      const matches = w.id === id || w.requestId.toString() === id;
+      if (matches) {
+        console.log("🎯 Found match to remove:", w);
+      }
+      return !matches;
+    });
+
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
 
-    setPendingWithdrawals(
-      pendingWithdrawals.filter((w) => w.id !== id) as PendingWithdrawal[]
-    );
+    removePendingWithdrawal(id);
   };
 
   const getReadyWithdrawals = () => {
