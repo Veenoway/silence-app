@@ -3,11 +3,11 @@
   "private": true,
   "workspaces": [
     "fhevm-sdk",
-    "silentswap"
+    "frontend"
   ],
   "scripts": {
     "build:sdk": "npm run build --workspace=fhevm-sdk",
-    "dev": "npm run dev --workspace=silentswap",
+    "dev": "npm run dev --workspace=frontend",
     "build": "npm run build:sdk && npm run build --workspace=frontend"
   },
   "dependencies": {
@@ -17,8 +17,5 @@
     "react-qr-code": "^2.0.18",
     "tailwind-merge": "^3.4.0",
     "zustand": "^5.0.8"
-  },
-  "devDependencies": {
-    "next": "15.5.6"
   }
 }
