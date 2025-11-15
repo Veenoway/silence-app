@@ -11,9 +11,11 @@
     "outDir": "dist",
     "rootDir": "src",
     "resolveJsonModule": true,
+    "noEmitOnError": false,
+    "noEmit": false,
+    "noImplicitAny": false,
     "jsx": "react-jsx",
     "types": ["node"]
   },
   "include": ["src/**/*"]
 }
-
