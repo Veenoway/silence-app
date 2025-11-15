@@ -2,13 +2,6 @@
 
 import type { PendingWithdrawal } from "../hooks/useWithdrawalManager";
 
-/**
- * Utility functions for withdrawal flow
- */
-
-/**
- * Parse note string to extract details safely
- */
 export function parseNoteDetails(noteString: string): {
   token: string;
   amount: string;
@@ -148,8 +141,11 @@ export function groupWithdrawalsByStatus(withdrawals: PendingWithdrawal[]): {
 /**
  * Calculate optimal gas settings
  */
+
 export async function estimateOptimalGas(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   publicClient: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   transaction: any
 ): Promise<{
   gasLimit: bigint;
@@ -270,9 +266,7 @@ export function getExplorerUrl(
   return baseUrl;
 }
 
-/**
- * Error handler with user-friendly messages
- */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function handleWithdrawalError(error: any): {
   title: string;
   message: string;
