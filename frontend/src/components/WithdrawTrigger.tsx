@@ -60,7 +60,7 @@ export const WithdrawTrigger = ({ onClick }: { onClick?: () => void }) => {
         My withdrawals
       </div>
 
-      {readyCount > 0 && (
+      {(readyCount > 0 || pendingCount > 0) && (
         <div
           className={cn(
             "absolute -top-3 -right-3",

@@ -1,14 +1,8 @@
 "use client";
 
-import type { PendingWithdrawal } from "./useWithdrawalManager";
+import { PublicClient, TransactionRequest } from "viem";
+import type { PendingWithdrawal } from "../hooks/useWithdrawalManager";
 
-/**
- * Utility functions for withdrawal flow
- */
-
-/**
- * Parse note string to extract details safely
- */
 export function parseNoteDetails(noteString: string): {
   token: string;
   amount: string;
@@ -148,9 +142,10 @@ export function groupWithdrawalsByStatus(withdrawals: PendingWithdrawal[]): {
 /**
  * Calculate optimal gas settings
  */
+
 export async function estimateOptimalGas(
-  publicClient: any,
-  transaction: any
+  publicClient: PublicClient,
+  transaction: TransactionRequest
 ): Promise<{
   gasLimit: bigint;
   maxFeePerGas: bigint;
@@ -163,12 +158,12 @@ export async function estimateOptimalGas(
     ]);
 
     // Add 20% buffer to gas limit
-    const bufferedGasLimit = (gasLimit * 120n) / 100n;
+    const bufferedGasLimit = (gasLimit * BigInt(120)) / BigInt(100);
 
     // Calculate fees based on latest block
-    const baseFee = block.baseFeePerGas || 0n;
-    const maxPriorityFeePerGas = 2n * 10n ** 9n; // 2 gwei tip
-    const maxFeePerGas = baseFee * 2n + maxPriorityFeePerGas;
+    const baseFee = block.baseFeePerGas || BigInt(0);
+    const maxPriorityFeePerGas = BigInt(2) * BigInt(10) ** BigInt(9); // 2 gwei tip
+    const maxFeePerGas = baseFee * BigInt(2) + maxPriorityFeePerGas;
 
     return {
       gasLimit: bufferedGasLimit,
@@ -179,9 +174,9 @@ export async function estimateOptimalGas(
     console.error("Error estimating gas:", error);
     // Return safe defaults
     return {
-      gasLimit: 300000n,
-      maxFeePerGas: 50n * 10n ** 9n,
-      maxPriorityFeePerGas: 2n * 10n ** 9n,
+      gasLimit: BigInt(300000),
+      maxFeePerGas: BigInt(50) * BigInt(10) ** BigInt(9),
+      maxPriorityFeePerGas: BigInt(2) * BigInt(10) ** BigInt(9),
     };
   }
 }
@@ -270,17 +265,13 @@ export function getExplorerUrl(
   return baseUrl;
 }
 
-/**
- * Error handler with user-friendly messages
- */
-export function handleWithdrawalError(error: any): {
+export function handleWithdrawalError(error: unknown): {
   title: string;
   message: string;
   canRetry: boolean;
 } {
-  const errorMessage = error?.message || String(error);
+  const errorMessage = error instanceof Error ? error.message : String(error);
 
-  // User rejected transaction
   if (
     errorMessage.includes("User rejected") ||
     errorMessage.includes("user rejected")
