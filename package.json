@@ -3,11 +3,11 @@
   "private": true,
   "workspaces": [
     "fhevm-sdk",
-    "silentswap"
+    "frontend"
   ],
   "scripts": {
     "build:sdk": "npm run build --workspace=fhevm-sdk",
-    "dev": "npm run dev --workspace=silentswap"
+    "dev": "npm run dev --workspace=frontend"
   },
   "dependencies": {
     "clsx": "^2.1.1",

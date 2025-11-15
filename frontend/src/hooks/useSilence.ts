@@ -57,7 +57,11 @@ export const useSilence = (parameters: {
     loadBalances,
     getTokenBalance,
     getPoolInfo,
-  } = useTokenBalances(silentPoolAddress, tokens);
+  } = useTokenBalances(tokens);
+
+  const reloadBalances = useCallback(() => {
+    loadBalances(true);
+  }, [loadBalances]);
 
   const {
     deposit,
@@ -66,7 +70,7 @@ export const useSilence = (parameters: {
     generatedNote,
     setGeneratedNote,
     canDeposit,
-  } = useSilenceDeposit(silentPoolAddress, loadBalances);
+  } = useSilenceDeposit(silentPoolAddress, reloadBalances);
 
   const {
     requestWithdrawal,
@@ -76,14 +80,13 @@ export const useSilence = (parameters: {
     isWithdrawing,
     withdrawalRequestId,
     canWithdraw,
-  } = useSilenceWithdraw(silentPoolAddress, loadBalances);
+  } = useSilenceWithdraw(silentPoolAddress, reloadBalances);
 
   const { mintToken, mintingState, getMintButtonText, isMinting, canMint } =
-    useFaucet(loadBalances);
+    useFaucet(reloadBalances);
 
   const loadPoolsForToken = useCallback(
     async (token: Token) => {
-      console.log("FEZFSE");
       if (!publicClient) return;
 
       setIsLoadingPools(true);
@@ -134,7 +137,6 @@ export const useSilence = (parameters: {
         } else if (pools.length > 0 && pools[0]) {
           setSelectedPool(pools[0]);
           setSelectedPoolId(pools[0].poolId);
-          setSelectedAmount(pools[0].denomination);
         } else {
           setSelectedPool(null);
         }
@@ -146,7 +148,7 @@ export const useSilence = (parameters: {
         setIsLoadingPools(false);
       }
     },
-    [publicClient, silentPoolAddress, selectedAmount]
+    [publicClient, silentPoolAddress]
   );
 
   useEffect(() => {

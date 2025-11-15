@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { getContract } from "viem";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
-import type { Token } from "./useTokenBalances";
+import { type Token } from "./useTokenBalances";
 
 const ERC20_FAUCET_ABI = [
   {
@@ -58,6 +58,7 @@ export const useFaucet = (onSuccess?: () => void) => {
 
         if (onSuccess) {
           onSuccess();
+          console.log("onSuccess");
         }
 
         setTimeout(() => {

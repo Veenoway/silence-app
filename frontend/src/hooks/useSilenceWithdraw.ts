@@ -8,6 +8,7 @@ import { useDrawerStore } from "../store/useDrawerStore";
 import { useWithdrawalStore } from "../store/useWithdrawStore";
 import type { Note } from "./useNotes";
 import { decodeNote, validateNote } from "./useNotes";
+import { useWithdrawalManager } from "./useWithdrawalManager";
 
 export type WithdrawalRequest = {
   commitment: `0x${string}`;
@@ -85,8 +86,9 @@ export const useSilenceWithdraw = (
   const [withdrawalRequestId, setWithdrawalRequestId] = useState<number | null>(
     null
   );
+  const { addWithdrawal } = useWithdrawalManager(chain?.id);
   const { closeDrawer, openDrawer } = useDrawerStore();
-
+  const { removeWithdrawal } = useWithdrawalManager(chain?.id);
   const checkNoteStatus = useCallback(
     async (noteString: string): Promise<NoteStatus | null> => {
       if (!publicClient) {
@@ -229,6 +231,18 @@ export const useSilenceWithdraw = (
           }
         }
 
+        await addWithdrawal({
+          requestId,
+          noteString,
+          recipient,
+          requestTimestamp: Date.now(),
+          chainId: chain!.id,
+          tokenSymbol: note.token || "ETH",
+          amount: note.amount || "?",
+          poolId: note.poolId || 0,
+          expiresAt: Date.now() + 390 * 1000,
+        });
+
         setWithdrawalRequestId(requestId);
 
         toast.success("Withdrawal requested!", {
@@ -281,15 +295,10 @@ export const useSilenceWithdraw = (
           res as [unknown, unknown, bigint, boolean, bigint];
 
         if (fulfilled) {
-          throw new Error("Withdrawal already fulfilled");
+          removeWithdrawal(requestId.toString());
+          toast.error("Withdrawal already fulfilled", { id: toastId });
+          return false;
         }
-
-        console.log("timeUntilWithdrawal", timeUntilWithdrawal);
-        console.log(
-          "timeUntilWithdrawal > BigInt(0)",
-          timeUntilWithdrawal > BigInt(0)
-        );
-        console.log("requestTimestamp(0)", requestTimestamp);
 
         if (timeUntilWithdrawal > BigInt(0)) {
           const hoursLeft = Number(timeUntilWithdrawal) / 3600;
@@ -317,12 +326,14 @@ export const useSilenceWithdraw = (
           timeout: 120_000,
           confirmations: 2,
         });
-        closeDrawer();
+
+        removeWithdrawal(requestId.toString());
 
         toast.success("Withdrawal complete! Funds received.", {
           id: toastId,
           duration: 5000,
         });
+        closeDrawer();
 
         if (onSuccess) {
           triggerPing();

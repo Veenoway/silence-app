@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { LuChevronDown } from "react-icons/lu";
+import { LuChevronDown, LuRefreshCcw } from "react-icons/lu";
 import { toast } from "sonner";
 import { useSilence } from "../../hooks/useSilence";
 import { NoteDialog } from "./components/dialog/noteDialog";
@@ -60,6 +60,7 @@ export default function Silence() {
     decodeNote,
     validateNote,
     selectedAmount,
+    loadBalances,
     setSelectedAmount,
   } = useSilence({
     silentPoolAddress: SILENTPOOL_ADDRESS,
@@ -132,7 +133,6 @@ export default function Silence() {
       setShowNoteModal(false);
       setGeneratedNote("");
       cleanupTimers();
-      toast.success("Note saved! Don't forget to keep it safe!");
     }, 3000);
   };
 
@@ -161,7 +161,7 @@ export default function Silence() {
   }, [noteString]);
 
   return (
-    <div className="min-h-screen bg-black p-8">
+    <div className=" bg-black p-8">
       <div className="max-w-6xl mx-auto relative pt-20">
         <div className="flex mx-auto">
           <div className="w-full">
@@ -203,7 +203,7 @@ export default function Silence() {
                     {activeTab === "deposit" ? (
                       <motion.div
                         key="deposit"
-                        initial={{ x: -100, opacity: 0 }}
+                        initial={{ x: 100, opacity: 0 }}
                         animate={{ x: 0, opacity: 1 }}
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                       >
@@ -211,8 +211,19 @@ export default function Silence() {
                           <label className="block text-white mb-2 text-lg font-bold">
                             Token
                           </label>
-                          <div className="text-white/60 text-sm mb-2">
-                            Balance: {selectedTokenBalance}{" "}
+                          <div className="text-white/80 leading-none text-sm mb-2 flex items-center">
+                            <button
+                              className="ml-2"
+                              onClick={() => {
+                                loadBalances(true);
+                                toast.success("Balances updated!");
+                              }}
+                            >
+                              <LuRefreshCcw size={12} />
+                            </button>
+                            <span className="-mt-1 ml-2 mr-1 text-white font-bold">
+                              {selectedTokenBalance}
+                            </span>
                             {selectedToken.symbol}
                           </div>
                         </div>
@@ -259,7 +270,7 @@ export default function Silence() {
                     ) : (
                       <motion.div
                         key="withdraw"
-                        initial={{ x: 100, opacity: 0 }}
+                        initial={{ x: -100, opacity: 0 }}
                         animate={{ x: 0, opacity: 1 }}
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                       >
