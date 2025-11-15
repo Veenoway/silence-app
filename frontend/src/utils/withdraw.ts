@@ -1,5 +1,6 @@
 "use client";
 
+import { PublicClient, TransactionRequest } from "viem";
 import type { PendingWithdrawal } from "../hooks/useWithdrawalManager";
 
 export function parseNoteDetails(noteString: string): {
@@ -143,10 +144,8 @@ export function groupWithdrawalsByStatus(withdrawals: PendingWithdrawal[]): {
  */
 
 export async function estimateOptimalGas(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  publicClient: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  transaction: any
+  publicClient: PublicClient,
+  transaction: TransactionRequest
 ): Promise<{
   gasLimit: bigint;
   maxFeePerGas: bigint;
@@ -266,15 +265,13 @@ export function getExplorerUrl(
   return baseUrl;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function handleWithdrawalError(error: any): {
+export function handleWithdrawalError(error: unknown): {
   title: string;
   message: string;
   canRetry: boolean;
 } {
-  const errorMessage = error?.message || String(error);
+  const errorMessage = error instanceof Error ? error.message : String(error);
 
-  // User rejected transaction
   if (
     errorMessage.includes("User rejected") ||
     errorMessage.includes("user rejected")
