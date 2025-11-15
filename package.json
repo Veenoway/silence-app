@@ -16,7 +16,9 @@
     "react-icons": "^5.5.0",
     "react-qr-code": "^2.0.18",
     "tailwind-merge": "^3.4.0",
-    "zustand": "^5.0.8",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
     "next": "15.5.6"
   }
 }
